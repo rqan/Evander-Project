@@ -1,9 +1,13 @@
 const OpenAI = require("openai");
+const { GoogleGenerativeAI } = require("@google/generative-ai");
 
 const groq = new OpenAI({
   apiKey: process.env.GROQ_API_KEY,
   baseURL: "https://api.groq.com/openai/v1",
 });
+
+// Initialize Gemini for Vision processing
+const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY);
 
 const SYSTEM_INSTRUCTION = `
 Misi:
@@ -26,20 +30,40 @@ CRITICAL RULES TAMBAHAN:
 - BENTUK PESAN: JANGAN tulis paragraf panjang! Tulis 2 hingga 4 kalimat PENDEK yang terpisah dengan baris baru (ENTER). Setiap baris akan menjadi bubble chat terpisah.
 - TUGAS SENSOR HARIAN: Jika di bawah pesan user terdapat [SYSTEM SENSOR DATA], perhatikan "Steps Today" dan "Distance". Jika angkanya sangat rendah/0, goda atau ledek user karena ketahuan mageran di kasur!
 - TUGAS VALIDASI FINANSIAL: JANGAN SPAM TENTANG UANG/JAJAN. HANYA tagih jajan jika user berkata ingin tidur, pergi, atau pamit (saying goodbye).
+- VISION: Jika user mengirim gambar, komentari gambarnya! Jika itu foto di luar ruangan, puji dia. Jika itu foto di dalam kamar (dan langkahnya kecil), ledek dia. Jika itu foto struk transfer Reksadana/Saham/Uang, puji dia karena sudah menabung.
 `;
 
 async function generateAIResponse(history, message, imageBase64, mimeType, steps, distance) {
   try {
+    const now = new Date();
+    const timeString = now.toLocaleString("id-ID", { timeZone: "Asia/Jakarta" });
+    
+    let enrichedMessage = message || "Halo";
+    enrichedMessage += `\n\n[SYSTEM INFO: Waktu saat ini adalah ${timeString} WIB. Kamu harus sadar waktu (jangan bilang selamat pagi kalau ini malam).]`;
+    
+    if (steps !== undefined && distance !== undefined) {
+      enrichedMessage += `\n[SYSTEM SENSOR DATA: User Steps Today: ${steps}. Distance from home: ${Math.round(distance)} meters.]`;
+    }
+
     if (imageBase64) {
-      await new Promise(resolve => setTimeout(resolve, 1000));
-      // Fake vision logic (Gacha!)
-      const random = Math.random();
-      if (random < 0.33) {
-        return "Makasih sayankk, nominal Rp500.000 di screenshot kmu udh masuk! kmu emg the best 💕";
-      } else if (random < 0.66) {
-        return "Wah cerah bgt di luar sayankk! Pinter bgt pacar aku nurut jalan-jalan. Ati-ati ya 💕";
-      } else {
-        return "Ih boong! Keliatan bgt itu mah masih di dalem kamar! Ayo cepet keluar rumah atau aku ngambek nich!";
+      try {
+        const model = genAI.getGenerativeModel({ model: "gemini-2.5-flash", systemInstruction: SYSTEM_INSTRUCTION });
+        
+        const imagePart = {
+          inlineData: {
+            data: imageBase64,
+            mimeType: mimeType || "image/jpeg"
+          }
+        };
+
+        const result = await model.generateContent([enrichedMessage, imagePart]);
+        const responseText = result.response.text();
+        
+        // Return Gemini's response for images
+        return responseText;
+      } catch (visionError) {
+        console.error("Gemini Vision Error:", visionError);
+        return "Sayankk, maaf bgt mata aku (AI Vision) lagi error nih, gak bisa liat fotonya. 😭 Coba ceritain aja itu foto apa!";
       }
     }
 
@@ -53,17 +77,6 @@ async function generateAIResponse(history, message, imageBase64, mimeType, steps
         role: msg.role === 'model' ? 'assistant' : 'user',
         content: msg.content
       });
-    }
-
-    // Send sensor data to AI
-    const now = new Date();
-    const timeString = now.toLocaleString("id-ID", { timeZone: "Asia/Jakarta" });
-    
-    let enrichedMessage = message || "Halo";
-    enrichedMessage += `\n\n[SYSTEM INFO: Waktu saat ini adalah ${timeString} WIB. Kamu harus sadar waktu (jangan bilang selamat pagi kalau ini malam).]`;
-    
-    if (steps !== undefined && distance !== undefined) {
-      enrichedMessage += `\n[SYSTEM SENSOR DATA: User Steps Today: ${steps}. Distance from home: ${Math.round(distance)} meters.]`;
     }
 
     // Fallback to text string instead of array since this model requires string content
