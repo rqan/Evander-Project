@@ -41,7 +41,12 @@ async function generateAIResponse(history, message, imageBase64, mimeType, steps
     let enrichedMessage = message || "Halo";
     enrichedMessage += `\n\n[SYSTEM INFO: Waktu saat ini adalah ${timeString} WIB. Kamu harus sadar waktu (jangan bilang selamat pagi kalau ini malam).]`;
     
-    if (steps !== undefined && distance !== undefined) {
+    // Only send sensor data to AI at night (after 18:00 or before 05:00) OR if user says sleep keywords
+    const hour = now.getHours();
+    const isNight = hour >= 18 || hour < 5;
+    const isSleepy = message && message.toLowerCase().match(/(tidur|sleep|bobo|ngantuk|pamit|bye)/);
+    
+    if (steps !== undefined && distance !== undefined && (isNight || isSleepy)) {
       enrichedMessage += `\n[SYSTEM SENSOR DATA: User Steps Today: ${steps}. Distance from home: ${Math.round(distance)} meters.]`;
     }
 
