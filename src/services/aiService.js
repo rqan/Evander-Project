@@ -41,9 +41,12 @@ async function generateAIResponse(history, message, imageBase64, mimeType, steps
     let enrichedMessage = message || "Halo";
     enrichedMessage += `\n\n[SYSTEM INFO: Waktu saat ini adalah ${timeString} WIB. Kamu harus sadar waktu (jangan bilang selamat pagi kalau ini malam).]`;
     
+    // Get hour in Asia/Jakarta timezone, NOT server UTC
+    const hourString = now.toLocaleString("en-US", { timeZone: "Asia/Jakarta", hour: 'numeric', hour12: false });
+    const localHour = parseInt(hourString, 10);
+    
     // Only send sensor data to AI at night (after 18:00 or before 05:00) OR if user says sleep keywords
-    const hour = now.getHours();
-    const isNight = hour >= 18 || hour < 5;
+    const isNight = localHour >= 18 || localHour < 5;
     const isSleepy = message && message.toLowerCase().match(/(tidur|sleep|bobo|ngantuk|pamit|bye)/);
     
     if (steps !== undefined && distance !== undefined && (isNight || isSleepy)) {
