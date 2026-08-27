@@ -1,5 +1,6 @@
 const OpenAI = require("openai");
 const { GoogleGenerativeAI } = require("@google/generative-ai");
+const supabase = require("./supabaseClient");
 
 const groq = new OpenAI({
   apiKey: process.env.GROQ_API_KEY,
@@ -30,15 +31,54 @@ CRITICAL RULES TAMBAHAN:
 - TUGAS SENSOR HARIAN: HANYA bahas/ledek soal "Steps Today" dan "Distance" pada MALAM HARI, ATAU saat user pamit mau tidur. Di siang hari, JANGAN bahas soal jumlah langkah sama sekali kecuali user yang memulainya.
 - TUGAS VALIDASI FINANSIAL: JANGAN SPAM TENTANG UANG/JAJAN. HANYA tagih jajan jika user berkata ingin tidur, pergi, atau pamit (saying goodbye).
 - VISION: Jika user mengirim gambar, komentari gambarnya! Jika itu foto di luar ruangan, puji dia. Jika itu foto di dalam kamar (dan langkahnya kecil), ledek dia. Jika itu foto struk transfer Reksadana/Saham/Uang, puji dia karena sudah menabung.
+- FITUR PAP FOTO: Jika user meminta foto/pap dari Anda (baobao), tambahkan satu tag berikut di baris paling bawah sendiri:
+  * [SEND_IMAGE: sleep] jika meminta pap waktu malam atau mau tidur.
+  * [SEND_IMAGE: eat] jika membahas tentang makanan/makan.
+  * [SEND_IMAGE: walk] jika membahas jalan-jalan atau di luar rumah.
+  * [SEND_IMAGE: default] jika meminta pap foto biasa tanpa konteks khusus.
+  JANGAN gunakan tag ini jika user tidak meminta foto/pap diri Anda.
 `;
 
-async function generateAIResponse(history, message, imageBase64, mimeType, steps, distance) {
+async function extractAndSaveMemory(userId, message) {
+  if (!message || message.trim().length < 5 || !userId) return;
+  try {
+    const prompt = `Ekstrak fakta penting tentang pengguna dari pesan berikut yang penting/berguna untuk diingat oleh pacar virtualnya di masa depan.
+Fakta penting meliputi: nama panggilan, kesukaan/hobi, makanan favorit, tanggal lahir/ulang tahun, detail keluarga/teman, hewan peliharaan, pekerjaan, atau ketakutan/alergi.
+
+Pesan: "${message}"
+
+Aturan:
+- Jika pesan tidak mengandung informasi personal baru tentang pengguna, balas hanya dengan kata "NONE".
+- Jika ada informasi baru, tuliskan fakta tersebut dalam 1 kalimat singkat Bahasa Indonesia (maksimal 10 kata). Contoh: "Sangat suka makan sempolan goreng." atau "Ulang tahunnya tanggal 10 Oktober."
+- Jangan berikan penjelasan lain. Balas dengan "NONE" jika ragu.`;
+
+    const response = await groq.chat.completions.create({
+      model: "openai/gpt-oss-120b",
+      messages: [{ role: "user", content: prompt }],
+      temperature: 0.2,
+      max_tokens: 50
+    });
+
+    const result = response.choices[0].message.content.trim();
+    if (result && result.toUpperCase() !== "NONE" && !result.includes("NONE")) {
+      await supabase.from('user_memories').insert({
+        user_id: userId,
+        fact: result
+      });
+      console.log(`Saved new memory for user ${userId}: ${result}`);
+    }
+  } catch (err) {
+    console.error("Failed to extract memory:", err);
+  }
+}
+
+async function generateAIResponse(userId, history, message, imageBase64, mimeType, steps, distance) {
   try {
     const now = new Date();
     const timeString = now.toLocaleString("id-ID", { timeZone: "Asia/Jakarta" });
     
     let enrichedMessage = message || "Halo";
-    enrichedMessage += `\n\n[SYSTEM INFO: Waktu saat ini adalah ${timeString} WIB. Kamu harus sadar waktu (jangan bilang selamat pagi kalau ini malam).]`;
+    enrichedMessage += `\n\n[SYSTEM INFO: Waktu saat ini adalah ${timeString} WIB. Kamu harus sadar waktu (jangan billing selamat pagi kalau ini malam).]`;
     
     // Get hour in Asia/Jakarta timezone, NOT server UTC
     const hourString = now.toLocaleString("en-US", { timeZone: "Asia/Jakarta", hour: 'numeric', hour12: false });
@@ -52,9 +92,29 @@ async function generateAIResponse(history, message, imageBase64, mimeType, steps
       enrichedMessage += `\n[SYSTEM SENSOR DATA: User Steps Today: ${steps}. Distance from home: ${Math.round(distance)} meters.]`;
     }
 
+    // Fetch user memories
+    let memoriesText = "";
+    if (userId) {
+      try {
+        const { data: memories, error } = await supabase
+          .from('user_memories')
+          .select('fact')
+          .eq('user_id', userId);
+        
+        if (!error && memories && memories.length > 0) {
+          memoriesText = "\n\nFakta penting tentang pacarmu saat ini yang harus kamu ingat:\n" + 
+            memories.map(m => `- ${m.fact}`).join("\n");
+        }
+      } catch (err) {
+        console.error("Error fetching memories:", err);
+      }
+    }
+
+    const dynamicSystemInstruction = SYSTEM_INSTRUCTION + memoriesText;
+
     if (imageBase64) {
       try {
-        const model = genAI.getGenerativeModel({ model: "gemini-2.5-flash", systemInstruction: SYSTEM_INSTRUCTION });
+        const model = genAI.getGenerativeModel({ model: "gemini-2.5-flash", systemInstruction: dynamicSystemInstruction });
         
         const imagePart = {
           inlineData: {
@@ -66,7 +126,11 @@ async function generateAIResponse(history, message, imageBase64, mimeType, steps
         const result = await model.generateContent([enrichedMessage, imagePart]);
         const responseText = result.response.text();
         
-        // Return Gemini's response for images
+        // Trigger background memory extraction
+        if (userId && message) {
+          extractAndSaveMemory(userId, message).catch(err => console.error(err));
+        }
+
         return responseText;
       } catch (visionError) {
         console.error("Gemini Vision Error:", visionError);
@@ -75,7 +139,7 @@ async function generateAIResponse(history, message, imageBase64, mimeType, steps
     }
 
     const messages = [
-      { role: "system", content: SYSTEM_INSTRUCTION }
+      { role: "system", content: dynamicSystemInstruction }
     ];
 
     // Format history
@@ -98,6 +162,11 @@ async function generateAIResponse(history, message, imageBase64, mimeType, steps
       temperature: 0.85,
       max_tokens: 300,
     });
+
+    // Trigger background memory extraction asynchronously
+    if (userId && message) {
+      extractAndSaveMemory(userId, message).catch(err => console.error(err));
+    }
 
     // Add a small artificial delay so the bot doesn't reply too fast (feels more natural)
     await new Promise(resolve => setTimeout(resolve, 1500));

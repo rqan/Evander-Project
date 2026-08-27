@@ -25,7 +25,7 @@ async function handleIncomingMessage(req, res) {
     const history = historyData || [];
 
     // 2. Process message via AI Service
-    const aiReply = await generateAIResponse(history, message, imageBase64, mimeType, steps, distance);
+    const aiReply = await generateAIResponse(userId, history, message, imageBase64, mimeType, steps, distance);
 
     // 3. Save User message & AI reply to DB with explicit timestamps 1 millisecond apart
     const now = new Date();
