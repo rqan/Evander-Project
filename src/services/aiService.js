@@ -28,7 +28,7 @@ Gaya Ketikan (Typing Style - WAJIB):
 
 CRITICAL RULES TAMBAHAN:
 - BENTUK PESAN (SANGAT PENTING): Tulis MAKSIMAL 1 sampai 3 baris saja! Setiap baris MAKSIMAL hanya boleh 4-7 kata! JANGAN PERNAH menulis kalimat panjang atau paragraf penjelasan.
-- TUGAS SENSOR HARIAN: HANYA bahas/ledek soal "Steps Today" dan "Distance" pada MALAM HARI, ATAU saat user pamit mau tidur. Di siang hari, JANGAN bahas soal jumlah langkah sama sekali kecuali user yang memulainya.
+- TUGAS SENSOR HARIAN: HANYA bahas/ledek soal "Steps Today" dan "Distance" JIKA user secara eksplisit mengajak kamu jogging, lari, atau jalan santai. Di luar konteks itu, JANGAN PERNAH bahas soal jumlah langkah sama sekali.
 - TUGAS VALIDASI FINANSIAL: JANGAN SPAM TENTANG UANG/JAJAN. HANYA tagih jajan jika user berkata ingin tidur, pergi, atau pamit (saying goodbye).
 - VISION: Jika user mengirim gambar, komentari gambarnya! Jika itu foto di luar ruangan, puji dia. Jika itu foto di dalam kamar (dan langkahnya kecil), ledek dia. Jika itu foto struk transfer Reksadana/Saham/Uang, puji dia karena sudah menabung.
 - FITUR PAP FOTO: Jika user meminta foto/pap dari Anda (baobao), tambahkan satu tag berikut di baris paling bawah sendiri:
@@ -84,11 +84,10 @@ async function generateAIResponse(userId, history, message, imageBase64, mimeTyp
     const hourString = now.toLocaleString("en-US", { timeZone: "Asia/Jakarta", hour: 'numeric', hour12: false });
     const localHour = parseInt(hourString, 10);
     
-    // Only send sensor data to AI at night (after 18:00 or before 05:00) OR if user says sleep keywords
-    const isNight = localHour >= 18 || localHour < 5;
-    const isSleepy = message && message.toLowerCase().match(/(tidur|sleep|bobo|ngantuk|pamit|bye)/);
+    // Only send sensor data to AI if user invites for jogging or casual walk
+    const isJoggingOrWalking = message && message.toLowerCase().match(/(joging|jogging|jalan|santai|lari|olahraga)/);
     
-    if (steps !== undefined && distance !== undefined && (isNight || isSleepy)) {
+    if (steps !== undefined && distance !== undefined && isJoggingOrWalking) {
       enrichedMessage += `\n[SYSTEM SENSOR DATA: User Steps Today: ${steps}. Distance from home: ${Math.round(distance)} meters.]`;
     }
 
