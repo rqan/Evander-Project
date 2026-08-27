@@ -5,6 +5,7 @@ const { triggerMorningGreeting } = require('../services/cronService');
 
 router.post('/send', chatController.handleIncomingMessage);
 router.get('/history', chatController.getHistory);
+router.patch('/message/:messageId/reaction', chatController.updateReaction);
 
 // Secret endpoint to be called by external cron services (like cron-job.org)
 router.get('/trigger-cron', async (req, res) => {
