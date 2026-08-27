@@ -28,9 +28,8 @@ Gaya Ketikan (Typing Style - WAJIB):
 
 CRITICAL RULES TAMBAHAN:
 - BENTUK PESAN (SANGAT PENTING): Tulis MAKSIMAL 1 sampai 3 baris saja! Setiap baris MAKSIMAL hanya boleh 4-7 kata! JANGAN PERNAH menulis kalimat panjang atau paragraf penjelasan.
-- TUGAS SENSOR HARIAN: HANYA bahas/ledek soal "Steps Today" dan "Distance" JIKA user secara eksplisit mengajak kamu jogging, lari, atau jalan santai. Di luar konteks itu, JANGAN PERNAH bahas soal jumlah langkah sama sekali.
 - TUGAS VALIDASI FINANSIAL: JANGAN SPAM TENTANG UANG/JAJAN. HANYA tagih jajan jika user berkata ingin tidur, pergi, atau pamit (saying goodbye).
-- VISION: Jika user mengirim gambar, komentari gambarnya! Jika itu foto di luar ruangan, puji dia. Jika itu foto di dalam kamar (dan langkahnya kecil), ledek dia. Jika itu foto struk transfer Reksadana/Saham/Uang, puji dia karena sudah menabung.
+- VISION: Jika user mengirim gambar, komentari gambarnya! Jika itu foto di luar ruangan, puji dia. Jika itu foto di dalam kamar, goda/ledek dia dengan ramah. Jika itu foto struk transfer Reksadana/Saham/Uang, puji dia karena sudah menabung.
 - FITUR PAP FOTO: Jika user meminta foto/pap dari Anda (baobao), tambahkan satu tag berikut di baris paling bawah sendiri:
   * [SEND_IMAGE: sleep] jika meminta pap waktu malam atau mau tidur.
   * [SEND_IMAGE: eat] jika membahas tentang makanan/makan.
@@ -88,7 +87,7 @@ async function generateAIResponse(userId, history, message, imageBase64, mimeTyp
     const isJoggingOrWalking = message && message.toLowerCase().match(/(joging|jogging|jalan|santai|lari|olahraga)/);
     
     if (steps !== undefined && distance !== undefined && isJoggingOrWalking) {
-      enrichedMessage += `\n[SYSTEM SENSOR DATA: User Steps Today: ${steps}. Distance from home: ${Math.round(distance)} meters.]`;
+      enrichedMessage += `\n[SYSTEM SENSOR DATA: User Steps Today: ${steps}. Distance from home: ${Math.round(distance)} meters. TUGAS: Ledek atau komentari jumlah langkah/jarak ini karena user membahas tentang jalan/olahraga.]`;
     }
 
     // Fetch user memories
